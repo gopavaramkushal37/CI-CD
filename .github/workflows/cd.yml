@@ -63,6 +63,7 @@ jobs:
       # --------------------------------
 
       - name: Deploy to server
+        if: ${{ secrets.SERVER_HOST != '' && secrets.SERVER_USERNAME != '' && secrets.SERVER_SSH_KEY != '' }}
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
