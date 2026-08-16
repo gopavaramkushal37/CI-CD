@@ -1,0 +1,83 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+
+jobs:
+
+  deploy:
+
+    # Only deploy if CI succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # --------------------------------
+      # 1. Checkout code
+      # --------------------------------
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+
+      # --------------------------------
+      # 2. Login to Docker Hub
+      # --------------------------------
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+
+      # --------------------------------
+      # 3. Build Docker image
+      # --------------------------------
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest .
+
+
+      # --------------------------------
+      # 4. Push Docker image
+      # --------------------------------
+
+      - name: Push Docker image
+        run: |
+          docker push \
+            ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest
+
+
+      # --------------------------------
+      # 5. Deploy to server
+      # --------------------------------
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest
+
+            docker stop my-flask-app || true
+
+            docker rm my-flask-app || true
+
+            docker run -d \
+              --name my-flask-app \
+              -p 5000:5000 \
+              --restart unless-stopped \
+              ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest
